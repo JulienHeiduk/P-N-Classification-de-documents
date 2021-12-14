@@ -19,7 +19,8 @@ if sys.argv[1] == "prediction":
     df_all = data_topredict.get_data()
     data_cleaned = data_topredict.clean_data(df_all)
     
-    data_topredict.predict(data_cleaned['Title+Texte'].iloc[1])
+    prediction = data_topredict.predict(data_cleaned['Title+Texte'].iloc[1])
+    print(prediction)
     
 if sys.argv[1] == "update":    
     import update as updt
