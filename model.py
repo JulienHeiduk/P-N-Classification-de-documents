@@ -70,9 +70,9 @@ class init_model:
         
         return df_work
     
-    def model(self, data_cleaned: pd.DataFrame, performance: bool):
+    def model(self, data_cleaned: pd.DataFrame, performance: str):
         
-        if performance == False:
+        if performance == "False":
             r = redis.Redis(host='localhost', port=6379, db=0)
             model = pickle.loads(r.get('model'))
 
@@ -91,7 +91,7 @@ class init_model:
             r = redis.Redis(host='localhost', port=6379, db=0)
             r.set('model', pickle.dumps(pipe_nb))
 
-        if performance == True:
+        if performance == "True":
             
             X = data_cleaned
             y = data_cleaned.pop('label')
@@ -106,7 +106,6 @@ class init_model:
                                ('nb', MNB_RIVER()))        
 
             for text,label in data_stream_texte_train:
-                # print(label)
                 pipe_nb = pipe_nb.learn_one(text,label)        
 
             y_pred = []
