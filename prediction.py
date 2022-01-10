@@ -1,5 +1,6 @@
 import nltk
 import river
+import redis
 import pickle
 import warnings
 import numpy as np
@@ -62,6 +63,7 @@ class model_predictions:
         return df_work    
     
     def predict(self, data_cleaned: pd.DataFrame):
-        model = pickle.load(open("./model.sav", 'rb'))
+        r = redis.Redis(host='localhost', port=6379, db=0)
+        model = pickle.loads(r.get('model'))
             
         return model.predict_proba_one({'Title+Texte': data_cleaned})

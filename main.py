@@ -3,14 +3,23 @@ import pandas as pd
 
 print("Mode: ", sys.argv[1])
 
-if sys.argv[1] == "initialisation":
-    import initialisation as init
+if sys.argv[1] == "model" & sys.argv[2] == True:
+    import model as model
     
-    data = init.init_model('./POC IA Classification 2021-10-12 093136 0000.json')
+    data = model.init_model('./POC IA Classification 2021-10-12 093136 0000.json')
     df_all = data.get_data()
     data_cleaned = data.clean_data(df_all)
     
-    data.first_model(data_cleaned)
+    data.model(data_cleaned)
+    
+if sys.argv[1] == "model" & sys.argv[2] == False:    
+    import model as model
+    
+    data = model.init_model('./POC IA Classification 2021-10-12 093136 0000.json')
+    df_all = data.get_data()
+    data_cleaned = data.clean_data(df_all)
+    
+    data.model(data_cleaned)    
 
 if sys.argv[1] == "prediction":
     import prediction as pred
@@ -21,15 +30,3 @@ if sys.argv[1] == "prediction":
     
     prediction = data_topredict.predict(data_cleaned['Title+Texte'].iloc[1])
     print(prediction)
-    
-if sys.argv[1] == "update":    
-    import update as updt
-    
-    data = updt.update_model('./POC IA Classification 2021-10-12 093136 0000.json')
-    df_all = data.get_data()
-    data_cleaned = data.clean_data(df_all)
-    
-    data.new_model(pd.DataFrame(data_cleaned[['Title+Texte','label']].iloc[1]).T)
-    
-if sys.argv[1] not in ["initialisation", "prediction", "update"]:
-    print("Commande non reconnue !")
