@@ -78,9 +78,10 @@ class init_model:
             try:
                 model = pickle.loads(r.get('model'))
             except:
-                print("Pas de modèles dans redis")
+                print("Pas de modèles dans redis - Initialisation d'un modèle")
                 pass
 
+            # Nécéssite au moins 2 classes différentes si pas de modèles
             X = data_cleaned
             y = data_cleaned.pop('label')
 
