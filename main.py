@@ -10,7 +10,7 @@ if sys.argv[1] == "model" and sys.argv[2] == "True":
     df_all = data.get_data()
     data_cleaned = data.clean_data(df_all)
     
-    data.model(data_cleaned, True)
+    data.model_train(data_cleaned, "True")
     
 if sys.argv[1] == "model" and sys.argv[2] == "False":    
     import model as ml
@@ -19,7 +19,7 @@ if sys.argv[1] == "model" and sys.argv[2] == "False":
     df_all = data.get_data()
     data_cleaned = data.clean_data(df_all)
     
-    data.model(data_cleaned, False)    
+    data.model_train(data_cleaned, "False")    
 
 if sys.argv[1] == "prediction":
     import prediction as pred

@@ -70,11 +70,16 @@ class init_model:
         
         return df_work
     
-    def model(self, data_cleaned: pd.DataFrame, performance: str):
+    def model_train(self, data_cleaned: pd.DataFrame, performance: str):
         
         if performance == "False":
-            r = redis.Redis(host='localhost', port=6379, db=0)
-            model = pickle.loads(r.get('model'))
+            r = redis.Redis(host='localhost', port=6379, db=0)  
+            
+            try:
+                model = pickle.loads(r.get('model'))
+            except:
+                print("Pas de modèles dans redis")
+                pass
 
             X = data_cleaned
             y = data_cleaned.pop('label')
