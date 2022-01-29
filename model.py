@@ -18,38 +18,44 @@ from river.naive_bayes import MultinomialNB as MNB_RIVER
 
 
 class init_model:
-    
-    def __init__(self, json: str):
-        self.data = pd.read_json(json, lines=True)
-        
+
+    def __init__(self, performance):
+        self.performance = performance
+
     @staticmethod
-    def transform_data(data_to_transform: pd.DataFrame, column: str) -> pd.DataFrame:
-        
+    def transform_data(data_to_transform: pd.DataFrame, column: str, performance: str) -> pd.DataFrame:
+
         default_stopwords = hero.stopwords.DEFAULT
         custom_stopwords = default_stopwords.union(get_stop_words('french'))
         custom_stopwords = custom_stopwords.union(stopwords.words('french'))
-        
+
         w_tokenizer = nltk.tokenize.WhitespaceTokenizer()
-        lemmatizer = nltk.stem.WordNetLemmatizer()        
-        
+        lemmatizer = nltk.stem.WordNetLemmatizer()
         data_to_transform = data_to_transform.astype(np.str)
         data_to_transform[column + '_clean'] = [word_tokenize(row) for row in data_to_transform[column]]
         data_to_transform[column + '_clean'] = data_to_transform[column + '_clean'].apply(lambda x: ' '.join(x))
         data_to_transform[column + '_clean'] = hero.lowercase(data_to_transform[column + '_clean'])
         data_to_transform[column + '_clean'] = hero.remove_punctuation(data_to_transform[column + '_clean'])
         data_to_transform[column + '_clean'] = hero.remove_whitespace(data_to_transform[column + '_clean'])
-        data_to_transform[column + '_clean'] = hero.remove_stopwords(data_to_transform[column + '_clean'],custom_stopwords)           
-        
-        df_labels = pd.DataFrame(data_to_transform['label'].value_counts() > 1)
+        data_to_transform[column + '_clean'] = hero.remove_stopwords(data_to_transform[column + '_clean'],custom_stopwords)
+
+        # ATTENTION ICI IL FAUDRA GERER LA TRANSFOR UPDATE VS MODEL ALL
+        print("MODE performance: ", performance)
+        if performance == "True":
+            print("Calcul de la performance activé")
+            df_labels = pd.DataFrame(data_to_transform['label'].value_counts() > 1)
+        if performance == "False":
+            print("Calcul de la performance désactivé")
+            df_labels = pd.DataFrame(data_to_transform['label'].value_counts())
         df_labels.reset_index(drop = False, inplace = True)
         list_to_keep = list(df_labels[df_labels['label'] == True]['index'])
 
         data_to_transform = data_to_transform[data_to_transform['label'].isin(list_to_keep)]
-        
+
         return data_to_transform
-    
+
     def get_data(self):
-        df = self.data
+        df = pd.read_json('./POC IA Classification 2021-10-12 093136 0000.json', lines=True)
         df_all = pd.DataFrame()
 
         for i in df.columns:
@@ -57,77 +63,75 @@ class init_model:
             df_class = pd.DataFrame(df_class)
             df_class['label'] = i
             df_all = pd.concat([df_all, df_class])
-            
         return df_all
-        
-    def clean_data(self, input_data: pd.DataFrame):    
-        df_work = input_data[["title", "texte", "label"]]  
-        df_work = self.transform_data(data_to_transform = df_work, column = "texte")
-        df_work = self.transform_data(data_to_transform = df_work, column = "title")
-        
-        df_work["Title+Texte"] = df_work["title_clean"] + " " + df_work["texte_clean"]
-        df_work = df_work.astype(np.str)        
-        
+
+    def clean_data(self, input_data: pd.DataFrame):
+        df_work = input_data[["texte", "label"]]
+        df_work = self.transform_data(data_to_transform = df_work, column = "texte", performance = self.performance)
+
+        df_work["Texte"] = df_work["texte_clean"]
+        df_work = df_work.astype(np.str)
+
         return df_work
-    
+
     def model_train(self, data_cleaned: pd.DataFrame, performance: str):
-        
-        if performance == "False":
-            r = redis.Redis(host='localhost', port=6379, db=0)  
-            
-            try:
-                model = pickle.loads(r.get('model'))
-            except:
-                print("Pas de modèles dans redis - Initialisation d'un modèle")
-                pass
 
-            # Nécéssite au moins 2 classes différentes si pas de modèles
-            X = data_cleaned
-            y = data_cleaned.pop('label')
+            if performance == "False":
+                r = redis.Redis(host='localhost', port=6379, db=0)
 
-            data_stream_texte_train = stream.iter_pandas(X, y)
+                try:
+                    model = pickle.loads(r.get('model'))
+                    print("Récupération d'un modèle dans redis")
+                except:
+                    print("Pas de modèles dans redis")
+                    pass
 
-            pipe_nb = Pipeline(('vectorizer', river.feature_extraction.BagOfWords(on="Title+Texte",strip_accents=False, lowercase=False)),
-                               ('nb', MNB_RIVER()))        
+                X = data_cleaned
+                y = data_cleaned.pop('label')
 
-            for text,label in data_stream_texte_train:
-                pipe_nb = pipe_nb.learn_one(text,label)        
+                data_stream_texte_train = stream.iter_pandas(X, y)
 
-            # save the model to disk     
-            r = redis.Redis(host='localhost', port=6379, db=0)
-            r.set('model', pickle.dumps(pipe_nb))
+                #pipe_nb = Pipeline(('vectorizer', river.feature_extraction.BagOfWords(on="Title+Texte",strip_accents=False, lowercase=False)),
+                #                   ('nb', MNB_RIVER()))
 
-        if performance == "True":
-            
-            X = data_cleaned
-            y = data_cleaned.pop('label')
+                for text,label in data_stream_texte_train:
+                    pipe_nb = model.learn_one(text,label)
 
-            # split the dataset into test set and train set
-            X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size = 0.2, random_state = 23)  
+                # save the model to disk
+                r = redis.Redis(host='localhost', port=6379, db=0)
+                r.set('model', pickle.dumps(pipe_nb))
 
-            data_stream_texte_train = stream.iter_pandas(X_train, y_train)
-            data_stream_texte_test = stream.iter_pandas(X_test, y_test)
+            if performance == "True":
 
-            pipe_nb = Pipeline(('vectorizer', river.feature_extraction.BagOfWords(on="Title+Texte",strip_accents=False, lowercase=False)),
-                               ('nb', MNB_RIVER()))        
+                X = data_cleaned
+                y = data_cleaned.pop('label')
 
-            for text,label in data_stream_texte_train:
-                pipe_nb = pipe_nb.learn_one(text,label)        
+                # split the dataset into test set and train set
+                X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size = 0.2, random_state = 23)
 
-            y_pred = []
-            for x,y in data_stream_texte_test:
-                res = pipe_nb.predict_one(x)
-                y_pred.append(res)
+                data_stream_texte_train = stream.iter_pandas(X_train, y_train)
+                data_stream_texte_test = stream.iter_pandas(X_test, y_test)
 
-            #Classification report
-            report = ClassificationReport()
+                pipe_nb = Pipeline(('vectorizer', river.feature_extraction.BagOfWords(on="Texte",strip_accents=False, lowercase=False)),
+                                ('nb', MNB_RIVER()))
 
-            for yt,yp in zip(y_test,y_pred):
-                report = report.update(yt,yp)
+                for text,label in data_stream_texte_train:
+                    pipe_nb = pipe_nb.learn_one(text,label)
 
-            with open('./performance.log', 'w') as f:
-                print(report, file=f)
+                y_pred = []
+                for x,y in data_stream_texte_test:
+                    res = pipe_nb.predict_one(x)
+                    y_pred.append(res)
 
-            # save the model to disk     
-            r = redis.Redis(host='localhost', port=6379, db=0)
-            r.set('model', pickle.dumps(pipe_nb))
+                #Classification report
+                report = ClassificationReport()
+
+                for yt,yp in zip(y_test,y_pred):
+                    report = report.update(yt,yp)
+
+                with open('./performance.log', 'w') as f:
+                    print(report, file=f)
+
+                # save the model to disk
+                r = redis.Redis(host='localhost', port=6379, db=0)
+                r.set('model', pickle.dumps(pipe_nb))
